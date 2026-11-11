@@ -105,6 +105,9 @@ final class CatcherView: NSView {
     private var ghost: NSWindow?
     private let ghostSide: CGFloat = 96
 
+    // Auch der erste Klick zählt, wenn das Popup nicht die aktive App ist.
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
     override func mouseDown(with event: NSEvent) {
         downPoint = event.locationInWindow
         dragStarted = false
@@ -231,6 +234,9 @@ final class FolderDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var panel: KeyPanel!
     var launching = false
     var dragging = false
+    /// Im Hover-Modus (von Better Dock per Überfahren geöffnet): Fläche des Dock-Symbols.
+    private var hoverTile: NSRect?
+    private var lastInside = Date()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         guard let url = Bundle.main.url(forResource: "folder", withExtension: "json"),
@@ -259,8 +265,15 @@ final class FolderDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         host.autoresizingMask = [.width, .height]
         blur.addSubview(host)
 
+        let arguments = CommandLine.arguments
+        if let index = arguments.firstIndex(of: "--hover"), arguments.count > index + 4 {
+            let values = arguments[(index + 1)...(index + 4)].compactMap { Double($0) }
+            if values.count == 4 { hoverTile = NSRect(x: values[0], y: values[1], width: values[2], height: values[3]) }
+        }
+
         panel = KeyPanel(contentRect: NSRect(origin: .zero, size: size),
-                         styleMask: [.borderless], backing: .buffered, defer: false)
+                         styleMask: hoverTile == nil ? [.borderless] : [.borderless, .nonactivatingPanel],
+                         backing: .buffered, defer: false)
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true
@@ -272,8 +285,14 @@ final class FolderDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // NSPanel versteckt sich sonst, solange die App (noch) nicht aktiv ist.
         panel.hidesOnDeactivate = false
         panel.orderFrontRegardless()
-        NSApp.activate(ignoringOtherApps: true)
-        panel.makeKey()
+        if hoverTile == nil {
+            NSApp.activate(ignoringOtherApps: true)
+            panel.makeKey()
+        } else {
+            // Offen bleiben, solange die Maus über Symbol oder Popup ist.
+            let timer = Timer(timeInterval: 0.08, repeats: true) { [weak self] _ in self?.checkHover() }
+            RunLoop.main.add(timer, forMode: .common)
+        }
 
         // Klick irgendwo außerhalb schließt den Ordner – auch falls das Popup nie den Fokus bekam.
         NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
@@ -281,9 +300,24 @@ final class FolderDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
-    /// Platziert das Popup neben dem angeklickten Dock-Symbol (= Mausposition).
-    private func origin(for size: NSSize) -> NSPoint {
+    private func checkHover() {
+        guard let tile = hoverTile, !launching, !dragging else { return }
         let mouse = NSEvent.mouseLocation
+        // Symbol, Popup und der Weg dazwischen zählen als "darüber".
+        let bridge = tile.union(panel.frame)
+        let corridor = NSRect(x: max(tile.minX, panel.frame.minX) - 12, y: bridge.minY,
+                              width: min(tile.maxX, panel.frame.maxX) - max(tile.minX, panel.frame.minX) + 24,
+                              height: bridge.height)
+        let inside = panel.frame.insetBy(dx: -14, dy: -14).contains(mouse)
+            || tile.insetBy(dx: -6, dy: -6).contains(mouse) || corridor.contains(mouse)
+        if inside { lastInside = Date() }
+        if Date().timeIntervalSince(lastInside) > 0.3 { NSApp.terminate(nil) }
+    }
+
+    /// Platziert das Popup neben dem Dock-Symbol (im Hover-Modus) bzw. der Mausposition.
+    private func origin(for size: NSSize) -> NSPoint {
+        var mouse = NSEvent.mouseLocation
+        if let tile = hoverTile { mouse = NSPoint(x: tile.midX, y: tile.midY) }
         let screen = NSScreen.screens.first { $0.frame.contains(mouse) } ?? NSScreen.main!
         let frame = screen.frame
         let orientation = UserDefaults(suiteName: "com.apple.dock")?.string(forKey: "orientation") ?? "bottom"
@@ -314,6 +348,7 @@ final class FolderDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     // Erneuter Klick auf das Dock-Symbol schließt den Ordner.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if hoverTile != nil { return false } // per Überfahren geöffnet: bleibt offen
         NSApp.terminate(nil)
         return false
     }

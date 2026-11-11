@@ -14,7 +14,7 @@ final class DragMerge: ObservableObject {
     @Published private(set) var enabled: Bool
     private var monitors: [Any] = []
 
-    private struct Item { let path: String; let frame: CGRect }
+    struct Item { let path: String; let frame: CGRect }
     private var items: [Item] = []
     private var source: String?
     private var target: String?
@@ -274,7 +274,7 @@ final class DragMerge: ObservableObject {
     /// Liegt `point` auf `frame`? Geprüft wird nur entlang der Dock-Leiste; quer dazu reicht es,
     /// nah am Bildschirmrand zu sein. Grund: Bei automatisch ausgeblendetem Dock meldet macOS die
     /// Positionen des versteckten Docks, also quer zur Leiste verschoben.
-    private static func hit(_ frame: CGRect, _ point: CGPoint, inset: CGFloat) -> Bool {
+    static func hit(_ frame: CGRect, _ point: CGPoint, inset: CGFloat) -> Bool {
         let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
         let screen = NSScreen.screens.first {
             $0.frame.contains(CGPoint(x: point.x, y: primaryHeight - point.y))
@@ -304,33 +304,33 @@ final class DragMerge: ObservableObject {
     }
 
     /// Mausposition in Bildschirmkoordinaten mit Ursprung oben links (wie die Bedienungshilfen).
-    private static func mousePoint() -> CGPoint {
+    static func mousePoint() -> CGPoint {
         let location = NSEvent.mouseLocation
         let height = NSScreen.screens.first?.frame.height ?? 0
         return CGPoint(x: location.x, y: height - location.y)
     }
 
     /// Alle App-Symbole im Dock mit Position – leer, wenn `point` gar nicht im Dock liegt.
-    private static func dockItems(around point: CGPoint) -> [Item] {
+    static func dockItems(around point: CGPoint, quiet: Bool = false) -> [Item] {
         guard let dock = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.dock").first else {
-            Log.write("Dock-Prozess nicht gefunden")
+            if !quiet { Log.write("Dock-Prozess nicht gefunden") }
             return []
         }
         let app = AXUIElementCreateApplication(dock.processIdentifier)
         let top = children(of: app)
         guard let list = top.first(where: { role(of: $0) == "AXList" }) ?? top.first else {
-            Log.write("Dock liefert keine Elemente (Bedienungshilfen-Zugriff verweigert?)")
+            if !quiet { Log.write("Dock liefert keine Elemente (Bedienungshilfen-Zugriff verweigert?)") }
             return []
         }
         // Nur weitermachen, wenn der Klick im Dock-Bereich liegt.
         guard let listFrame = frame(of: list) else {
-            Log.write("Dock-Leiste ohne Position (Rollen: \(top.map { role(of: $0) ?? "?" }))")
+            if !quiet { Log.write("Dock-Leiste ohne Position (Rollen: \(top.map { role(of: $0) ?? "?" }))") }
             return []
         }
         guard hit(listFrame, point, inset: 0) else {
             // Klicks am unteren Bildschirmrand protokollieren – hilft, falls die Koordinaten nicht passen.
             if let screen = NSScreen.screens.first, point.y > screen.frame.height - 120 {
-                Log.write("Klick \(point) außerhalb der Dock-Leiste \(listFrame)")
+                if !quiet { Log.write("Klick \(point) außerhalb der Dock-Leiste \(listFrame)") }
             }
             return []
         }
@@ -352,7 +352,7 @@ final class DragMerge: ObservableObject {
             return Item(path: url.standardizedFileURL.path, frame: frame)
         }
         if found.isEmpty {
-            Log.write("Im Dock \(elements.count) Elemente, aber keine App erkannt (Rollen: \(Array(Set(elements.compactMap { role(of: $0) }))))")
+            if !quiet { Log.write("Im Dock \(elements.count) Elemente, aber keine App erkannt (Rollen: \(Array(Set(elements.compactMap { role(of: $0) }))))") }
         }
         return found
     }

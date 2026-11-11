@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DockController.restoreAutoHideIfNeeded()
         HotKey.register { DockController.shared.toggle() }
         _ = DragMerge.shared // startet die Maus-Beobachtung, falls eingeschaltet
+        _ = HoverOpen.shared
         // Erlaubt die Steuerung von außen (Skripte, Kurzbefehle).
         let center = DistributedNotificationCenter.default()
         center.addObserver(forName: Notification.Name("com.awyre.dock.toggle"), object: nil, queue: .main) { _ in
@@ -31,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 struct MenuContent: View {
     @ObservedObject var dock: DockController
     @ObservedObject var drag = DragMerge.shared
+    @ObservedObject var hover = HoverOpen.shared
     @Environment(\.openWindow) private var openWindow
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
 
@@ -46,6 +48,7 @@ struct MenuContent: View {
             openWindow(id: "folders")
             NSApp.activate(ignoringOtherApps: true)
         }
+        Toggle("Ordner beim Überfahren öffnen", isOn: Binding(get: { hover.enabled }, set: { hover.setEnabled($0) }))
         Toggle("Ordner per Ziehen im Dock erstellen", isOn: Binding(get: { drag.enabled }, set: { drag.setEnabled($0) }))
         if drag.enabled && !drag.hasPermission {
             Button("⚠️ Bedienungshilfen erlauben…") {

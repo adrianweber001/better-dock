@@ -7,7 +7,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VERSION="1.2.0"
+VERSION="1.3.0"
 APP="Better Dock.app"
 
 # Universal-Binary: läuft auf Apple-Silicon- und Intel-Macs.

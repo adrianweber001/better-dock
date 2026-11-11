@@ -15,6 +15,7 @@
 
 - **Rechte Dock-Seite ausblenden** – minimierte Fenster und zuletzt benutzte Apps verschwinden aus dem Dock, übrig bleiben nur deine Apps links (und der Papierkorb). Ein Klick oder `⌃⌥⌘D` schaltet um, ein zweiter stellt alles wieder her.
 - **App-Ordner im Dock** – mehrere Apps zu einem Ordner zusammenfassen, wie am iPad. Der Ordner sitzt links zwischen deinen Apps, zeigt Mini-Icons und öffnet beim Klick ein Raster mit den Apps.
+- **Öffnen beim Überfahren** – Maus über einen Ordner im Dock bewegen, er öffnet sich von selbst und bleibt offen, solange die Maus über Symbol oder Popup ist. Im Menü abschaltbar.
 - **Ordner per Ziehen** – eine App im Dock doppelt drücken (einmal klicken, sofort wieder drücken und halten), dann über einer anderen App kurz hin- und herrütteln: Beide landen zusammen in einem Ordner. Alternativ ruhig darüber halten, bis ein grünes „+1" erscheint, und loslassen. Auf einen bestehenden Ordner gezogen, kommt die App dazu. Ohne Doppeldrücken bleibt Ziehen normales Umsortieren. Braucht die Bedienungshilfen-Berechtigung.
 - **Apps wieder herausziehen** – Ordner öffnen, App gedrückt halten (sie wackelt wie am iPad) und aus dem Ordner ziehen. Sie liegt wieder einzeln im Dock; bleibt nur eine App übrig, löst sich der Ordner auf.
 - **Beim Anmelden starten** – optional, per Häkchen im Menü.
@@ -46,6 +47,7 @@ Klick auf das Dock-Symbol in der Menüleiste:
 | --- | --- |
 | Rechte Dock-Seite ausblenden / einblenden | Schaltet den rechten Dock-Bereich um (auch per `⌃⌥⌘D`) |
 | Ordner verwalten… | Fenster zum Anlegen, Benennen und Befüllen von Dock-Ordnern |
+| Ordner beim Überfahren öffnen | Öffnet Ordner ohne Klick, sobald die Maus darüber steht (standardmäßig an) |
 | Ordner per Ziehen im Dock erstellen | Schaltet das Zusammenziehen von Apps im Dock ein oder aus (standardmäßig an) |
 | Beim Anmelden starten | Startet Better Dock automatisch |
 
