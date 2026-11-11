@@ -2,11 +2,12 @@
 # Baut "Better Dock.app" aus dem Swift-Paket.
 #   ./build.sh           nur bauen
 #   ./build.sh install   bauen, nach /Applications kopieren und starten
-#   ./build.sh zip       bauen und dist/Better-Dock.zip für den Download erzeugen
+#   ./build.sh zip       bauen und dist/Better-Dock.zip erzeugen
+#   ./build.sh dmg       bauen und dist/Better-Dock.dmg mit gestaltetem Fenster erzeugen
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VERSION="1.1.0"
+VERSION="1.2.0"
 APP="Better Dock.app"
 
 # Universal-Binary: läuft auf Apple-Silicon- und Intel-Macs.
@@ -67,5 +68,17 @@ zip)
     rm -f dist/Better-Dock.zip
     ditto -c -k --norsrc --keepParent "$APP" dist/Better-Dock.zip
     echo "Download-Paket: $(pwd)/dist/Better-Dock.zip"
+    ;;
+dmg)
+    # dmgbuild schreibt das Fensterlayout direkt, ohne den Finder fernzusteuern.
+    if [[ ! -x .venv/bin/dmgbuild ]]; then
+        python3 -m venv .venv
+        .venv/bin/pip install --quiet dmgbuild
+    fi
+    swift Assets/dmg-background.swift >/dev/null
+    mkdir -p dist
+    rm -f dist/Better-Dock.dmg
+    .venv/bin/dmgbuild -s dmg-settings.py -D app="$APP" "Better Dock" dist/Better-Dock.dmg >/dev/null
+    echo "Download-Paket: $(pwd)/dist/Better-Dock.dmg"
     ;;
 esac

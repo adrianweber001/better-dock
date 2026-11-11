@@ -9,7 +9,7 @@ final class DragMerge: ObservableObject {
     static let shared = DragMerge()
 
     /// So lange muss die App über dem Ziel gehalten werden.
-    private let holdTime: TimeInterval = 0.5
+    private let holdTime: TimeInterval = 0.45
 
     @Published private(set) var enabled: Bool
     private var monitors: [Any] = []
@@ -18,11 +18,19 @@ final class DragMerge: ObservableObject {
     private var items: [Item] = []
     private var source: String?
     private var target: String?
-    private var targetSince = Date()
     private var armed = false
     private var poll: Timer?
     private var lastTrusted: Bool?
     private var upTicks = 0
+    private let doublePressTime: TimeInterval = 0.5
+    private var lastDownPath: String?
+    private var lastDownTime = Date.distantPast
+    private let shakeDistance: CGFloat = 8
+    private var shakeDirection: CGFloat = 0
+    private var shakeExtreme: CGFloat = 0
+    private var shakeTurns: [Date] = []
+    private var restPoint = CGPoint.zero
+    private var restSince = Date()
     private var overlay: NSWindow?
     private var dragStart = Date()
 
@@ -88,10 +96,24 @@ final class DragMerge: ObservableObject {
             Log.write("Klick im Dock, aber nicht auf einer App (\(items.count) Symbole gefunden)")
             return
         }
+        // Der Ordner-Modus startet nur nach Doppeldrücken: einmal klicken, sofort wieder drücken
+        // und halten. Ein einfaches Ziehen bleibt normales Umsortieren im Dock.
+        let now = Date()
+        let isDouble = hit.path == lastDownPath && now.timeIntervalSince(lastDownTime) < doublePressTime
+        lastDownPath = hit.path
+        lastDownTime = now
+        guard isDouble else { return }
+
         source = hit.path
-        Log.write("Ziehen beginnt: \(hit.path)")
+        NSSound(named: "Pop")?.play() // Signal: Ordner-Modus ist an
+        Log.write("Ordner-Modus (Doppeldrücken): \(hit.path)")
         upTicks = 0
         dragStart = Date()
+        restPoint = point
+        restSince = Date()
+        shakeDirection = 0
+        shakeExtreme = Self.isVertical ? point.y : point.x
+        shakeTurns = []
 
         // Während eines Ziehvorgangs liefert macOS keine verlässlichen Mausereignisse an andere
         // Apps – deshalb die Maus selbst abfragen, bis die Taste losgelassen wird.
@@ -113,6 +135,7 @@ final class DragMerge: ObservableObject {
             Log.write(String(format: "Dauer %.1f s, Ende bei (%.0f, %.0f)", Date().timeIntervalSince(dragStart), point.x, point.y))
             if armed, let target {
                 Log.write("Losgelassen auf \(target) -> Ordner")
+                MergeAnimation.play(at: NSEvent.mouseLocation, source: source, target: target)
                 // Dem Dock kurz Zeit geben, sein eigenes Loslassen zu verarbeiten.
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
                     FolderStore.shared.merge(source: source, target: target)
@@ -124,42 +147,115 @@ final class DragMerge: ObservableObject {
             return
         }
 
-        // Nur die Mitte des Symbols zählt, damit normales Umsortieren nichts auslöst.
-        let hit = items.first { $0.path != source && Self.hit($0.frame, point, inset: 0.12) }?.path
+        // Ziel bestimmen. Beim Ziehen weicht die Ziel-App im Dock aus und man folgt ihr mit der Maus –
+        // oft zurück auf den alten Platz der gezogenen App. Deshalb bleibt ein einmal gewähltes Ziel
+        // "kleben", solange die Maus in seiner Nähe ist und nicht klar auf einer anderen App steht.
+        let hit: String?
+        if let other = items.first(where: { $0.path != source && Self.hit($0.frame, point, inset: 0.1) }) {
+            hit = other.path
+        } else if let target, let frame = items.first(where: { $0.path == target })?.frame,
+                  Self.hit(frame, point, inset: -1.0) {
+            hit = target
+        } else {
+            hit = items.filter { $0.path != source && Self.hit($0.frame, point, inset: -0.2) }
+                .min { Self.distance($0.frame, point) < Self.distance($1.frame, point) }?.path
+        }
+
+        // Die Haltezeit zählt erst, wenn die Maus still steht – so löst normales Umsortieren nichts aus.
+        if hypot(point.x - restPoint.x, point.y - restPoint.y) > 10 {
+            restPoint = point
+            restSince = Date()
+        }
+
         if hit != target {
             target = hit
-            targetSince = Date()
             armed = false
-            if let hit { Log.write("  über \(hit)") }
+            restPoint = point
+            restSince = Date()
+            Log.write("  über \(hit ?? "nichts")")
             overlay?.orderOut(nil)
-        } else if !armed, target != nil, Date().timeIntervalSince(targetSince) >= holdTime {
+        } else if !armed, target != nil, Date().timeIntervalSince(restSince) >= holdTime {
             armed = true
-            NSSound(named: "Tink")?.play() // Signal: jetzt loslassen
-            if let frame = items.first(where: { $0.path == target })?.frame { showOverlay(size: frame.width) }
+            Log.write("  bereit: Loslassen erstellt Ordner")
+            NSSound(named: "Tink")?.play()
+        }
+        if armed { showBadge() }
+
+        // Rütteln: schnelles Hin und Her über einer anderen App legt die App sofort in den Ordner.
+        let axis = Self.isVertical ? point.y : point.x
+        if shakeDirection == 0 {
+            if abs(axis - shakeExtreme) >= shakeDistance {
+                shakeDirection = axis > shakeExtreme ? 1 : -1
+                shakeExtreme = axis
+            }
+        } else if (axis - shakeExtreme) * shakeDirection > 0 {
+            shakeExtreme = axis // weiter in dieselbe Richtung
+        } else if abs(axis - shakeExtreme) >= shakeDistance {
+            shakeDirection = -shakeDirection
+            shakeExtreme = axis
+            shakeTurns.append(Date())
+        }
+        shakeTurns.removeAll { Date().timeIntervalSince($0) > 0.9 }
+        guard shakeTurns.count >= 3 else { return }
+        shakeTurns = []
+
+        let shakeTarget = target ?? items.filter { $0.path != source && Self.hit($0.frame, point, inset: -0.6) }
+            .min { Self.distance($0.frame, point) < Self.distance($1.frame, point) }?.path
+        guard let shakeTarget else {
+            Log.write("  Rütteln erkannt, aber keine andere App in der Nähe")
+            return
+        }
+        Log.write("  Rütteln erkannt über \(shakeTarget) -> Ordner")
+        NSSound(named: "Tink")?.play()
+        MergeAnimation.play(at: NSEvent.mouseLocation, source: source, target: shakeTarget)
+        reset()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            FolderStore.shared.merge(source: source, target: shakeTarget)
         }
     }
 
-    /// Zeigt unter dem Mauszeiger ein Ordner-Feld: "hier loslassen ergibt einen Ordner".
-    private func showOverlay(size: CGFloat) {
-        let side = size * 1.35
+    private static func distance(_ frame: CGRect, _ point: CGPoint) -> CGFloat {
+        isVertical ? abs(frame.midY - point.y) : abs(frame.midX - point.x)
+    }
+
+    private static var isVertical: Bool {
+        let orientation = UserDefaults(suiteName: "com.apple.dock")?.string(forKey: "orientation") ?? "bottom"
+        return orientation == "left" || orientation == "right"
+    }
+
+    /// Grünes „+1" rechts oben am gezogenen Symbol: Loslassen legt die App in einen Ordner.
+    private func showBadge() {
+        let size = NSSize(width: 40, height: 26)
         if overlay == nil {
-            let window = NSWindow(contentRect: .zero, styleMask: [.borderless], backing: .buffered, defer: false)
+            let window = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless],
+                                  backing: .buffered, defer: false)
             window.isOpaque = false
             window.backgroundColor = .clear
             window.ignoresMouseEvents = true
-            window.level = .popUpMenu
+            window.hasShadow = true
+            // Über dem gezogenen Symbol, das macOS sehr weit oben zeichnet.
+            window.level = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()) + 1)
             window.collectionBehavior = [.canJoinAllSpaces, .transient]
-            let plate = NSView()
-            plate.wantsLayer = true
-            plate.layer?.backgroundColor = NSColor(white: 0.75, alpha: 0.55).cgColor
-            plate.layer?.borderColor = NSColor(white: 1, alpha: 0.9).cgColor
-            plate.layer?.borderWidth = 2
-            window.contentView = plate
+
+            let pill = NSView(frame: NSRect(origin: .zero, size: size))
+            pill.wantsLayer = true
+            pill.layer?.backgroundColor = NSColor.systemGreen.cgColor
+            pill.layer?.cornerRadius = size.height / 2
+            pill.layer?.borderColor = NSColor.white.cgColor
+            pill.layer?.borderWidth = 2
+
+            let label = NSTextField(labelWithString: "+1")
+            label.font = .systemFont(ofSize: 15, weight: .bold)
+            label.textColor = .white
+            label.alignment = .center
+            label.sizeToFit()
+            label.frame = NSRect(x: 0, y: (size.height - label.frame.height) / 2, width: size.width, height: label.frame.height)
+            pill.addSubview(label)
+            window.contentView = pill
             overlay = window
         }
         let mouse = NSEvent.mouseLocation
-        overlay?.setFrame(NSRect(x: mouse.x - side / 2, y: mouse.y - side / 2, width: side, height: side), display: true)
-        overlay?.contentView?.layer?.cornerRadius = side * 0.23
+        overlay?.setFrameOrigin(NSPoint(x: mouse.x + 14, y: mouse.y + 14))
         overlay?.orderFrontRegardless()
     }
 

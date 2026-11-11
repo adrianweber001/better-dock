@@ -8,14 +8,14 @@
 </p>
 
 <p align="center">
-  <a href="../../releases/latest/download/Better-Dock.zip"><strong>⬇️ Better Dock herunterladen</strong></a>
+  <a href="../../releases/latest/download/Better-Dock.dmg"><strong>⬇️ Better Dock herunterladen</strong></a>
 </p>
 
 ## Was die App kann
 
 - **Rechte Dock-Seite ausblenden** – minimierte Fenster und zuletzt benutzte Apps verschwinden aus dem Dock, übrig bleiben nur deine Apps links (und der Papierkorb). Ein Klick oder `⌃⌥⌘D` schaltet um, ein zweiter stellt alles wieder her.
 - **App-Ordner im Dock** – mehrere Apps zu einem Ordner zusammenfassen, wie am iPad. Der Ordner sitzt links zwischen deinen Apps, zeigt Mini-Icons und öffnet beim Klick ein Raster mit den Apps.
-- **Ordner per Ziehen** – eine App im Dock auf eine andere ziehen und etwa eine halbe Sekunde halten: Ein Ton und ein Ordner-Feld unter dem Mauszeiger zeigen „jetzt loslassen". Beide Apps landen zusammen in einem Ordner. Auf einen bestehenden Ordner gezogen, kommt die App dazu. Braucht die Bedienungshilfen-Berechtigung.
+- **Ordner per Ziehen** – eine App im Dock doppelt drücken (einmal klicken, sofort wieder drücken und halten), dann über einer anderen App kurz hin- und herrütteln: Beide landen zusammen in einem Ordner. Alternativ ruhig darüber halten, bis ein grünes „+1" erscheint, und loslassen. Auf einen bestehenden Ordner gezogen, kommt die App dazu. Ohne Doppeldrücken bleibt Ziehen normales Umsortieren. Braucht die Bedienungshilfen-Berechtigung.
 - **Apps wieder herausziehen** – Ordner öffnen, App gedrückt halten (sie wackelt wie am iPad) und aus dem Ordner ziehen. Sie liegt wieder einzeln im Dock; bleibt nur eine App übrig, löst sich der Ordner auf.
 - **Beim Anmelden starten** – optional, per Häkchen im Menü.
 
@@ -23,8 +23,8 @@ Better Dock hat kein eigenes Dock-Symbol, sondern sitzt oben rechts in der Menü
 
 ## Installation
 
-1. [Better-Dock.zip](../../releases/latest/download/Better-Dock.zip) herunterladen und entpacken.
-2. `Better Dock.app` in den Ordner **Programme** ziehen.
+1. [Better-Dock.dmg](../../releases/latest/download/Better-Dock.dmg) herunterladen und öffnen.
+2. Im Fenster die App nach unten ins gezeichnete Dock ziehen – dort liegt die Verknüpfung zum Ordner **Programme**.
 3. Beim ersten Start meldet macOS, dass die App nicht geöffnet werden kann, weil sie nicht von Apple geprüft (notarisiert) ist. Dann:
    **Systemeinstellungen → Datenschutz & Sicherheit → nach unten scrollen → „Dennoch öffnen"**.
 
@@ -56,7 +56,8 @@ Klick auf das Dock-Symbol in der Menüleiste:
 - Bei jeder Änderung startet das Dock kurz neu (etwa eine Sekunde).
 - Der Papierkorb bleibt immer sichtbar – macOS lässt ihn nicht entfernen.
 - Eine laufende App zeigt macOS weiterhin einzeln im Dock an, auch wenn sie in einem Ordner liegt.
-- Das Dock kennt von sich aus kein Aufeinanderziehen: Beim Ziehen rücken die anderen Symbole weiterhin zur Seite. Better Dock merkt sich, wo das Ziel-Symbol beim Start des Ziehens lag – dort halten und loslassen.
+- Das Dock kennt von sich aus kein Aufeinanderziehen: Beim Ziehen weicht die Ziel-App weiterhin zur Seite aus. Better Dock merkt sich das Ziel trotzdem – einfach in ihrer Nähe rütteln oder halten.
+- Blendet sich dein Dock automatisch aus, bleibt es nach einer Änderung sichtbar, bis die Maus es verlässt.
 - Minimierte Fenster gehen nicht verloren: Rechtsklick auf das App-Symbol oder Mission Control zeigt sie.
 
 ## Wie es funktioniert
@@ -73,4 +74,4 @@ Benötigt Xcode (Swift 5.9 oder neuer).
 ./build.sh install
 ```
 
-`./build.sh` baut nur, `./build.sh zip` erzeugt zusätzlich das Download-Paket in `dist/`.
+`./build.sh` baut nur, `./build.sh dmg` erzeugt zusätzlich das DMG in `dist/` (richtet dafür einmalig `dmgbuild` in `.venv/` ein).

@@ -139,17 +139,42 @@ final class CatcherView: NSView {
             return
         }
         dragStarted = false
-        ghost?.orderOut(nil)
-        ghost = nil
         (NSApp.delegate as? FolderDelegate)?.dragging = false
 
         let mouse = NSEvent.mouseLocation
-        guard let frame = window?.frame, !frame.insetBy(dx: -10, dy: -10).contains(mouse) else { return }
-        // Außerhalb des Ordners losgelassen: Better Dock nimmt die App heraus.
-        DistributedNotificationCenter.default().postNotificationName(
-            Notification.Name("com.awyre.dock.removeFromFolder"), object: nil,
-            userInfo: ["app": app.url.path, "bundle": Bundle.main.bundlePath], deliverImmediately: true)
-        NSApp.terminate(nil)
+        let ghostWindow = ghost
+        ghost = nil
+        guard let frame = window?.frame, !frame.insetBy(dx: -10, dy: -10).contains(mouse) else {
+            ghostWindow?.orderOut(nil)
+            return
+        }
+
+        // Außerhalb des Ordners losgelassen: Das Symbol "verpufft", dann nimmt Better Dock die App heraus.
+        (NSApp.delegate as? FolderDelegate)?.launching = true // Popup darf sich jetzt nicht selbst schließen
+        window?.orderOut(nil)
+        if let icon = ghostWindow?.contentView?.layer?.sublayers?.first {
+            icon.removeAnimation(forKey: "wiggle")
+            let grow = CABasicAnimation(keyPath: "transform.scale")
+            grow.fromValue = 1
+            grow.toValue = 1.25
+            let fade = CABasicAnimation(keyPath: "opacity")
+            fade.fromValue = 1
+            fade.toValue = 0
+            let poof = CAAnimationGroup()
+            poof.animations = [grow, fade]
+            poof.duration = 0.28
+            poof.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            icon.opacity = 0
+            icon.add(poof, forKey: "poof")
+        }
+        let path = app.url.path
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            ghostWindow?.orderOut(nil)
+            DistributedNotificationCenter.default().postNotificationName(
+                Notification.Name("com.awyre.dock.removeFromFolder"), object: nil,
+                userInfo: ["app": path, "bundle": Bundle.main.bundlePath], deliverImmediately: true)
+            NSApp.terminate(nil)
+        }
     }
 
     /// Das gezogene Symbol: eigenes kleines Fenster, damit es beim Ziehen wackeln kann.
@@ -204,7 +229,7 @@ final class KeyPanel: NSPanel {
 
 final class FolderDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var panel: KeyPanel!
-    private var launching = false
+    var launching = false
     var dragging = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {

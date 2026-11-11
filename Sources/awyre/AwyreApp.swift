@@ -3,6 +3,7 @@ import ServiceManagement
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        DockController.restoreAutoHideIfNeeded()
         HotKey.register { DockController.shared.toggle() }
         _ = DragMerge.shared // startet die Maus-Beobachtung, falls eingeschaltet
         // Erlaubt die Steuerung von außen (Skripte, Kurzbefehle).
