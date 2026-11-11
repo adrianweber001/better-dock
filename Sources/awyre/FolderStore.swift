@@ -73,6 +73,16 @@ final class FolderStore: ObservableObject {
         apply()
     }
 
+    /// Eine App wurde aus dem geöffneten Ordner herausgezogen. Bleibt nur noch eine App übrig,
+    /// löst sich der Ordner auf (wie am iPad) – alle Apps kehren an ihren Platz im Dock zurück.
+    func remove(app: String, fromBundle bundle: String) {
+        guard let id = applied.first(where: { $0.bundlePath == bundle })?.folderID,
+              let index = folders.firstIndex(where: { $0.id == id }) else { return }
+        folders[index].appPaths.removeAll { $0 == app }
+        if folders[index].appPaths.count < 2 { folders.remove(at: index) }
+        apply()
+    }
+
     /// Schreibt die Ordner ins Dock: erst den alten Stand zurücknehmen, dann neu aufbauen.
     func apply() {
         lastError = nil
@@ -123,6 +133,7 @@ final class FolderStore: ObservableObject {
             DockTiles.commit(tiles)
         } catch {
             lastError = "Ordner konnten nicht übernommen werden: \(error)"
+            Log.write(lastError ?? "")
         }
     }
 }

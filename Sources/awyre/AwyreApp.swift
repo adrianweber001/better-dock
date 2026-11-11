@@ -14,6 +14,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             FolderStore.shared.load()
             FolderStore.shared.apply()
         }
+        center.addObserver(forName: Notification.Name("com.awyre.dock.removeFromFolder"), object: nil, queue: .main) { note in
+            guard let app = note.userInfo?["app"] as? String,
+                  let bundle = note.userInfo?["bundle"] as? String else { return }
+            FolderStore.shared.remove(app: app, fromBundle: bundle)
+        }
         center.addObserver(forName: Notification.Name("com.awyre.dock.merge"), object: nil, queue: .main) { note in
             guard let source = note.userInfo?["source"] as? String,
                   let target = note.userInfo?["target"] as? String else { return }

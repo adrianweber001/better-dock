@@ -34,39 +34,51 @@ final class DockController: ObservableObject {
             }
         }
         store.set(saved, forKey: savedKey)
-
-        for (key, value) in hiddenValues {
-            CFPreferencesSetAppValue(key as CFString, value as CFBoolean, dockDomain)
-        }
-        commit(hidden: true)
+        commit(hidden: true, values: hiddenValues.mapValues { Optional($0) })
     }
 
     func show() {
         guard isHidden else { return }
         let saved = store.dictionary(forKey: savedKey) as? [String: Bool] ?? [:]
-        for key in hiddenValues.keys {
-            if let value = saved[key] {
-                CFPreferencesSetAppValue(key as CFString, value as CFBoolean, dockDomain)
-            } else {
-                // War vorher nicht gesetzt -> wieder entfernen.
-                CFPreferencesSetAppValue(key as CFString, nil, dockDomain)
-            }
-        }
-        commit(hidden: false)
+        // War ein Wert vorher nicht gesetzt, wird er wieder entfernt (nil).
+        var values: [String: Bool?] = [:]
+        for key in hiddenValues.keys { values[key] = .some(saved[key]) }
+        commit(hidden: false, values: values)
     }
 
-    private func commit(hidden: Bool) {
-        CFPreferencesAppSynchronize(dockDomain)
+    private func commit(hidden: Bool, values: [String: Bool?]) {
         store.set(hidden, forKey: hiddenKey)
         isHidden = hidden
-        Self.restartDock()
+        apply(values, attemptsLeft: 3)
     }
 
-    /// macOS startet das Dock nach dem Beenden automatisch neu.
+    /// Schreibt die Werte und startet das Dock neu. Das Dock überschreibt beim Beenden manchmal
+    /// unsere Werte mit seinem eigenen Stand – deshalb nachprüfen und notfalls wiederholen.
+    private func apply(_ values: [String: Bool?], attemptsLeft: Int) {
+        for (key, value) in values {
+            CFPreferencesSetAppValue(key as CFString, value.map { $0 as CFBoolean }, dockDomain)
+        }
+        CFPreferencesAppSynchronize(dockDomain)
+        Self.restartDock()
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [self] in
+            CFPreferencesAppSynchronize(dockDomain)
+            let ok = values.allSatisfy { key, value in
+                (CFPreferencesCopyAppValue(key as CFString, dockDomain) as? Bool) == value
+            }
+            if !ok {
+                Log.write("Dock hat die Einstellung überschrieben – Versuch wird wiederholt (\(attemptsLeft) übrig)")
+                if attemptsLeft > 0 { apply(values, attemptsLeft: attemptsLeft - 1) }
+            }
+        }
+    }
+
+    /// macOS startet das Dock nach dem Beenden automatisch neu. Bewusst mit KILL: Beim normalen
+    /// Beenden schreibt das Dock seinen eigenen Stand zurück und überschreibt unsere Änderung.
     static func restartDock() {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/bin/killall")
-        task.arguments = ["Dock"]
+        task.arguments = ["-KILL", "Dock"]
         try? task.run()
     }
 }

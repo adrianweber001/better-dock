@@ -15,7 +15,8 @@
 
 - **Rechte Dock-Seite ausblenden** – minimierte Fenster und zuletzt benutzte Apps verschwinden aus dem Dock, übrig bleiben nur deine Apps links (und der Papierkorb). Ein Klick oder `⌃⌥⌘D` schaltet um, ein zweiter stellt alles wieder her.
 - **App-Ordner im Dock** – mehrere Apps zu einem Ordner zusammenfassen, wie am iPad. Der Ordner sitzt links zwischen deinen Apps, zeigt Mini-Icons und öffnet beim Klick ein Raster mit den Apps.
-- **Ordner per Ziehen (experimentell)** – eine App im Dock auf eine andere ziehen, etwa eine halbe Sekunde halten (ein kurzer Ton signalisiert „jetzt"), loslassen: Beide landen zusammen in einem Ordner. Auf einen bestehenden Ordner gezogen, kommt die App dazu. Muss im Menü eingeschaltet werden und braucht die Bedienungshilfen-Berechtigung.
+- **Ordner per Ziehen** – eine App im Dock auf eine andere ziehen und etwa eine halbe Sekunde halten: Ein Ton und ein Ordner-Feld unter dem Mauszeiger zeigen „jetzt loslassen". Beide Apps landen zusammen in einem Ordner. Auf einen bestehenden Ordner gezogen, kommt die App dazu. Braucht die Bedienungshilfen-Berechtigung.
+- **Apps wieder herausziehen** – Ordner öffnen, App gedrückt halten (sie wackelt wie am iPad) und aus dem Ordner ziehen. Sie liegt wieder einzeln im Dock; bleibt nur eine App übrig, löst sich der Ordner auf.
 - **Beim Anmelden starten** – optional, per Häkchen im Menü.
 
 Better Dock hat kein eigenes Dock-Symbol, sondern sitzt oben rechts in der Menüleiste.
@@ -33,6 +34,8 @@ Better Dock hat kein eigenes Dock-Symbol, sondern sitzt oben rechts in der Menü
    xattr -dr com.apple.quarantine "/Applications/Better Dock.app"
    ```
 
+4. Für „Ordner per Ziehen" fragt macOS beim ersten Start nach der Bedienungshilfen-Berechtigung – erlauben.
+
 Voraussetzung: macOS 14 oder neuer, Apple Silicon oder Intel.
 
 ## Bedienung
@@ -43,7 +46,7 @@ Klick auf das Dock-Symbol in der Menüleiste:
 | --- | --- |
 | Rechte Dock-Seite ausblenden / einblenden | Schaltet den rechten Dock-Bereich um (auch per `⌃⌥⌘D`) |
 | Ordner verwalten… | Fenster zum Anlegen, Benennen und Befüllen von Dock-Ordnern |
-| Ordner per Ziehen im Dock erstellen | Schaltet das Zusammenziehen von Apps im Dock ein (experimentell) |
+| Ordner per Ziehen im Dock erstellen | Schaltet das Zusammenziehen von Apps im Dock ein oder aus (standardmäßig an) |
 | Beim Anmelden starten | Startet Better Dock automatisch |
 
 **Ordner anlegen:** „Ordner verwalten…" → mit „+" einen Ordner anlegen → Apps hinzufügen (aus dem Dock, über „Andere App…" oder per Ziehen aus dem Finder) → „Übernehmen". Wird ein Ordner gelöscht, kommen die Apps an ihre alte Stelle im Dock zurück.
@@ -58,7 +61,7 @@ Klick auf das Dock-Symbol in der Menüleiste:
 
 ## Wie es funktioniert
 
-Better Dock nutzt nur die normalen Dock-Einstellungen von macOS (`com.apple.dock`): `minimize-to-application`, `show-recents` und die Liste der Dock-Apps. Für das Ausblenden und die Ordner ist keine Sonderberechtigung nötig. Nur „Ordner per Ziehen" braucht die Bedienungshilfen-Berechtigung, um die Position der Dock-Symbole zu lesen; die Mausbewegung wird dabei ausschließlich lokal ausgewertet. Vor der ersten Änderung an der Dock-Belegung legt die App eine Sicherung unter `~/Library/Application Support/awyre/dock-backup.plist` ab.
+Better Dock nutzt nur die normalen Dock-Einstellungen von macOS (`com.apple.dock`): `minimize-to-application`, `show-recents` und die Liste der Dock-Apps. Für das Ausblenden und die Ordner ist keine Sonderberechtigung nötig. Nur „Ordner per Ziehen" braucht die Bedienungshilfen-Berechtigung, um die Position der Dock-Symbole zu lesen; die Mausbewegung wird dabei ausschließlich lokal ausgewertet. Zur Fehlersuche schreibt die App ein kleines Protokoll nach `~/Library/Logs/BetterDock.log`; es bleibt auf deinem Mac. Vor der ersten Änderung an der Dock-Belegung legt die App eine Sicherung unter `~/Library/Application Support/awyre/dock-backup.plist` ab.
 
 Jeder Dock-Ordner ist eine winzige Hilfs-App in `~/Applications/Better Dock Ordner/`, die beim Klick das Raster anzeigt.
 

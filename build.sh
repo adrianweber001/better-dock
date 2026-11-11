@@ -6,7 +6,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VERSION="1.0.0"
+VERSION="1.1.0"
 APP="Better Dock.app"
 
 # Universal-Binary: läuft auf Apple-Silicon- und Intel-Macs.
@@ -48,7 +48,9 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 PLIST
 
 codesign --force -s - "$APP/Contents/Helpers/awyre-folder"
-codesign --force -s - "$APP"
+# Feste Signatur-Anforderung: So bleibt die Bedienungshilfen-Berechtigung nach Updates erhalten
+# (ohne sie hängt macOS die Berechtigung an den exakten Build).
+codesign --force -s - -r='designated => identifier "com.awyre.dock"' "$APP"
 echo "Fertig: $(pwd)/$APP"
 
 case "${1:-}" in
@@ -63,7 +65,7 @@ install)
 zip)
     mkdir -p dist
     rm -f dist/Better-Dock.zip
-    ditto -c -k --keepParent "$APP" dist/Better-Dock.zip
+    ditto -c -k --norsrc --keepParent "$APP" dist/Better-Dock.zip
     echo "Download-Paket: $(pwd)/dist/Better-Dock.zip"
     ;;
 esac

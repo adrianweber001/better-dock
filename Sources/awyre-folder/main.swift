@@ -35,27 +35,165 @@ struct FolderView: View {
     }
 }
 
+enum DragState { case idle, holding, dragging }
+
 struct AppButton: View {
     let app: AppEntry
     let action: () -> Void
     @State private var hovering = false
+    @State private var state = DragState.idle
+    @State private var tilt = false
 
     var body: some View {
-        Button(action: action) {
-            VStack(spacing: 4) {
-                Image(nsImage: app.icon)
-                    .resizable()
-                    .frame(width: 64, height: 64)
-                Text(app.name)
-                    .font(.caption)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-            }
-            .frame(width: 92, height: 92)
-            .background(RoundedRectangle(cornerRadius: 14).fill(.primary.opacity(hovering ? 0.12 : 0)))
+        VStack(spacing: 4) {
+            Image(nsImage: app.icon)
+                .resizable()
+                .frame(width: 64, height: 64)
+                // Wackeln wie am iPad, sobald die App gedrückt gehalten wird.
+                .rotationEffect(.degrees(state == .holding ? (tilt ? 4 : -4) : 0))
+                .opacity(state == .dragging ? 0.25 : 1)
+            Text(app.name)
+                .font(.caption)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .opacity(state == .dragging ? 0.25 : 1)
         }
-        .buttonStyle(.plain)
+        .frame(width: 92, height: 92)
+        .background(RoundedRectangle(cornerRadius: 14).fill(.primary.opacity(hovering && state == .idle ? 0.12 : 0)))
         .onHover { hovering = $0 }
+        .onChange(of: state) { _, newValue in
+            if newValue == .holding {
+                tilt = false
+                withAnimation(.easeInOut(duration: 0.12).repeatForever(autoreverses: true)) { tilt = true }
+            } else {
+                withAnimation(.linear(duration: 0.05)) { tilt = false }
+            }
+        }
+        // Klick startet die App, Ziehen aus dem Popup heraus nimmt sie aus dem Ordner.
+        .overlay(DragCatcher(app: app, click: action) { state = $0 })
+        .help("Klicken zum Öffnen – herausziehen, um die App aus dem Ordner zu nehmen")
+    }
+}
+
+/// Unsichtbare Fläche über einem App-Symbol: unterscheidet Klick und Ziehen.
+struct DragCatcher: NSViewRepresentable {
+    let app: AppEntry
+    let click: () -> Void
+    let stateChanged: (DragState) -> Void
+
+    func makeNSView(context: Context) -> CatcherView {
+        let view = CatcherView()
+        view.app = app
+        view.click = click
+        view.stateChanged = stateChanged
+        return view
+    }
+
+    func updateNSView(_ view: CatcherView, context: Context) {
+        view.click = click
+        view.stateChanged = stateChanged
+    }
+}
+
+final class CatcherView: NSView {
+    var app: AppEntry!
+    var click: (() -> Void)?
+    var stateChanged: ((DragState) -> Void)?
+    private var downPoint: NSPoint?
+    private var dragStarted = false
+    private var holdTimer: DispatchWorkItem?
+    private var ghost: NSWindow?
+    private let ghostSide: CGFloat = 96
+
+    override func mouseDown(with event: NSEvent) {
+        downPoint = event.locationInWindow
+        dragStarted = false
+        let timer = DispatchWorkItem { [weak self] in
+            guard let self, !self.dragStarted, self.downPoint != nil else { return }
+            self.stateChanged?(.holding)
+        }
+        holdTimer = timer
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: timer)
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard let downPoint else { return }
+        if !dragStarted {
+            let point = event.locationInWindow
+            guard hypot(point.x - downPoint.x, point.y - downPoint.y) > 6 else { return }
+            dragStarted = true
+            holdTimer?.cancel()
+            (NSApp.delegate as? FolderDelegate)?.dragging = true
+            stateChanged?(.dragging)
+            showGhost()
+        }
+        moveGhost()
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        holdTimer?.cancel()
+        downPoint = nil
+        stateChanged?(.idle)
+        guard dragStarted else {
+            click?()
+            return
+        }
+        dragStarted = false
+        ghost?.orderOut(nil)
+        ghost = nil
+        (NSApp.delegate as? FolderDelegate)?.dragging = false
+
+        let mouse = NSEvent.mouseLocation
+        guard let frame = window?.frame, !frame.insetBy(dx: -10, dy: -10).contains(mouse) else { return }
+        // Außerhalb des Ordners losgelassen: Better Dock nimmt die App heraus.
+        DistributedNotificationCenter.default().postNotificationName(
+            Notification.Name("com.awyre.dock.removeFromFolder"), object: nil,
+            userInfo: ["app": app.url.path, "bundle": Bundle.main.bundlePath], deliverImmediately: true)
+        NSApp.terminate(nil)
+    }
+
+    /// Das gezogene Symbol: eigenes kleines Fenster, damit es beim Ziehen wackeln kann.
+    private func showGhost() {
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: ghostSide, height: ghostSide),
+                              styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.hasShadow = false
+        window.ignoresMouseEvents = true
+        window.level = .popUpMenu
+        window.collectionBehavior = [.canJoinAllSpaces, .transient]
+
+        let content = NSView(frame: NSRect(x: 0, y: 0, width: ghostSide, height: ghostSide))
+        content.wantsLayer = true
+        let icon = CALayer()
+        let side: CGFloat = 72
+        icon.bounds = CGRect(x: 0, y: 0, width: side, height: side)
+        icon.position = CGPoint(x: ghostSide / 2, y: ghostSide / 2)
+        icon.contents = app.icon.cgImage(forProposedRect: nil, context: nil, hints: nil)
+        icon.contentsGravity = .resizeAspect
+        icon.shadowOpacity = 0.35
+        icon.shadowRadius = 6
+        icon.shadowOffset = CGSize(width: 0, height: -3)
+        content.layer?.addSublayer(icon)
+
+        let wiggle = CABasicAnimation(keyPath: "transform.rotation.z")
+        wiggle.fromValue = -0.07
+        wiggle.toValue = 0.07
+        wiggle.duration = 0.12
+        wiggle.autoreverses = true
+        wiggle.repeatCount = .infinity
+        wiggle.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        icon.add(wiggle, forKey: "wiggle")
+
+        window.contentView = content
+        ghost = window
+        moveGhost()
+        window.orderFrontRegardless()
+    }
+
+    private func moveGhost() {
+        let mouse = NSEvent.mouseLocation
+        ghost?.setFrameOrigin(NSPoint(x: mouse.x - ghostSide / 2, y: mouse.y - ghostSide / 2))
     }
 }
 
@@ -67,6 +205,7 @@ final class KeyPanel: NSPanel {
 final class FolderDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var panel: KeyPanel!
     private var launching = false
+    var dragging = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         guard let url = Bundle.main.url(forResource: "folder", withExtension: "json"),
@@ -113,7 +252,7 @@ final class FolderDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         // Klick irgendwo außerhalb schließt den Ordner – auch falls das Popup nie den Fokus bekam.
         NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
-            if self?.launching == false { NSApp.terminate(nil) }
+            if self?.launching == false && self?.dragging == false { NSApp.terminate(nil) }
         }
     }
 
@@ -145,7 +284,7 @@ final class FolderDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     // Klick daneben schließt den Ordner.
     func windowDidResignKey(_ notification: Notification) {
-        if !launching { NSApp.terminate(nil) }
+        if !launching && !dragging { NSApp.terminate(nil) }
     }
 
     // Erneuter Klick auf das Dock-Symbol schließt den Ordner.
