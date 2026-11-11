@@ -22,7 +22,7 @@ enum DockTiles {
     static func commit(_ tiles: [Tile], attemptsLeft: Int = 3) {
         write(tiles)
         DockController.restartDock()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
             let wanted = tiles.compactMap(path(of:))
             if read().compactMap(path(of:)) != wanted, attemptsLeft > 0 {
                 commit(tiles, attemptsLeft: attemptsLeft - 1)

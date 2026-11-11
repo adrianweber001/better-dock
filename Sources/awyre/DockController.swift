@@ -61,7 +61,7 @@ final class DockController: ObservableObject {
         CFPreferencesAppSynchronize(dockDomain)
         Self.restartDock()
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { [self] in
             CFPreferencesAppSynchronize(dockDomain)
             let ok = values.allSatisfy { key, value in
                 (CFPreferencesCopyAppValue(key as CFString, dockDomain) as? Bool) == value
@@ -77,10 +77,12 @@ final class DockController: ObservableObject {
     /// Beenden schreibt das Dock seinen eigenen Stand zurück und überschreibt unsere Änderung.
     static func restartDock() {
         keepDockVisible()
+        WindowShelf.remember() // minimierte Fenster würden sonst auf den Bildschirm zurückspringen
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/bin/killall")
         task.arguments = ["-KILL", "Dock"]
         try? task.run()
+        WindowShelf.restoreSoon()
     }
 
     // MARK: - Dock sichtbar halten

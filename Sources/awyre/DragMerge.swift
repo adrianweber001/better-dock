@@ -357,6 +357,40 @@ final class DragMerge: ObservableObject {
         return found
     }
 
+    /// Diagnose: schreibt den aktuellen Dock-Inhalt (Art und Name jedes Symbols) ins Protokoll.
+    static func dumpDock() {
+        guard let dock = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.dock").first else { return }
+        let top = children(of: AXUIElementCreateApplication(dock.processIdentifier))
+        guard let list = top.first(where: { role(of: $0) == "AXList" }) ?? top.first else {
+            Log.write("Dock-Inhalt: nicht lesbar")
+            return
+        }
+        func text(_ element: AXUIElement, _ attribute: String) -> String {
+            var value: CFTypeRef?
+            AXUIElementCopyAttributeValue(element, attribute as CFString, &value)
+            return value as? String ?? "-"
+        }
+        let items = children(of: list).map { "\(text($0, kAXSubroleAttribute).replacingOccurrences(of: "DockItem", with: "").replacingOccurrences(of: "AX", with: "")):\(text($0, kAXTitleAttribute))" }
+        let tiles = items.filter { $0.hasPrefix("MinimizedWindow") }.count
+        Log.write("Dock-Inhalt (\(items.count)), Fenster rechts: \(tiles) – " + items.joined(separator: " | "))
+
+        // Dazu: welche Apps haben gerade minimierte Fenster?
+        var minimized: [String] = []
+        for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular {
+            let element = AXUIElementCreateApplication(app.processIdentifier)
+            var value: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(element, kAXWindowsAttribute as CFString, &value) == .success,
+                  let windows = value as? [AXUIElement] else { continue }
+            let count = windows.filter {
+                var flag: CFTypeRef?
+                AXUIElementCopyAttributeValue($0, kAXMinimizedAttribute as CFString, &flag)
+                return (flag as? Bool) == true
+            }.count
+            if count > 0 { minimized.append("\(app.localizedName ?? "?"): \(count)") }
+        }
+        Log.write("Minimierte Fenster: " + (minimized.isEmpty ? "keine" : minimized.joined(separator: ", ")))
+    }
+
     private static func role(of element: AXUIElement) -> String? {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &value) == .success else { return nil }

@@ -62,6 +62,7 @@ Klick auf das Dock-Symbol in der Menüleiste:
 - Eine laufende App zeigt macOS weiterhin einzeln im Dock an, auch wenn sie in einem Ordner liegt.
 - Das Dock kennt von sich aus kein Aufeinanderziehen: Beim Ziehen weicht die Ziel-App weiterhin zur Seite aus. Better Dock merkt sich das Ziel trotzdem – einfach in ihrer Nähe rütteln oder halten.
 - Blendet sich dein Dock automatisch aus, bleibt es nach einer Änderung sichtbar, bis die Maus es verlässt.
+- Startet das Dock neu, holt macOS minimierte Fenster kurz auf den Bildschirm. Better Dock minimiert sie danach wieder (braucht die Bedienungshilfen-Berechtigung).
 - Minimierte Fenster gehen nicht verloren: Rechtsklick auf das App-Symbol oder Mission Control zeigt sie.
 
 ## Wie es funktioniert

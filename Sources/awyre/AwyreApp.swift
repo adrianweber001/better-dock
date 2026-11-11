@@ -21,6 +21,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                   let bundle = note.userInfo?["bundle"] as? String else { return }
             FolderStore.shared.remove(app: app, fromBundle: bundle)
         }
+        center.addObserver(forName: Notification.Name("com.awyre.dock.dump"), object: nil, queue: .main) { _ in
+            DragMerge.dumpDock()
+        }
+        center.addObserver(forName: Notification.Name("com.awyre.dock.minimize"), object: nil, queue: .main) { note in
+            if let bundleID = note.userInfo?["bundle"] as? String { WindowShelf.minimizeAll(bundleID: bundleID) }
+        }
         center.addObserver(forName: Notification.Name("com.awyre.dock.merge"), object: nil, queue: .main) { note in
             guard let source = note.userInfo?["source"] as? String,
                   let target = note.userInfo?["target"] as? String else { return }
