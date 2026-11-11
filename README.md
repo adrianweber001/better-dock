@@ -75,3 +75,7 @@ Benötigt Xcode (Swift 5.9 oder neuer).
 ```
 
 `./build.sh` baut nur, `./build.sh dmg` erzeugt zusätzlich das DMG in `dist/` (richtet dafür einmalig `dmgbuild` in `.venv/` ein).
+
+## Lizenz
+
+[MIT](LICENSE)
