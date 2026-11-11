@@ -1,0 +1,2 @@
+geist-latin.woff2      Geist by Vercel, SIL Open Font License 1.1 – https://github.com/vercel/geist-font
+phosphor*.woff2        Phosphor Icons 2.1.1, MIT License – https://github.com/phosphor-icons/web
