@@ -9,6 +9,8 @@
 
 <p align="center">
   <a href="../../releases/latest/download/Better-Dock.dmg"><strong>⬇️ Better Dock herunterladen</strong></a>
+  &nbsp;·&nbsp;
+  <a href="https://adrianweber001.github.io/better-dock/">Webseite mit Demo zum Ausprobieren</a>
 </p>
 
 ## Was die App kann
@@ -77,6 +79,10 @@ Benötigt Xcode (Swift 5.9 oder neuer).
 ```
 
 `./build.sh` baut nur, `./build.sh dmg` erzeugt zusätzlich das DMG in `dist/` (richtet dafür einmalig `dmgbuild` in `.venv/` ein).
+
+## Ersteller
+
+Erstellt von awyre.
 
 ## Lizenz
 
