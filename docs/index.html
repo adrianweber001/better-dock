@@ -1,0 +1,641 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Better Dock: ein aufgeräumtes Dock für deinen Mac</title>
+<meta name="description" content="Better Dock blendet die rechte Seite im Dock aus und packt Apps in Ordner wie am iPad. Kostenlos, Open Source, für macOS 14 oder neuer. Direkt im Browser ausprobieren.">
+<link rel="canonical" href="https://adrianweber001.github.io/better-dock/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Better Dock: ein aufgeräumtes Dock für deinen Mac">
+<meta property="og:description" content="Rechte Seite im Dock ausblenden und Apps in Ordner packen. Kostenlos und Open Source.">
+<meta property="og:url" content="https://adrianweber001.github.io/better-dock/">
+<meta property="og:image" content="https://adrianweber001.github.io/better-dock/icon.png">
+<meta name="twitter:card" content="summary">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css">
+<style>
+:root {
+  /* Flächen (flach, keine Verläufe) */
+  --bg: #181818;
+  --surface-1: #1F1F1F;
+  --surface-2: #272727;
+  --surface-3: #313131;
+  --text: #FFFFFF;
+  --muted: #9B9B9B;
+  --line: rgba(255, 255, 255, 0.12);
+  --accent: #2F6BEB;
+  --accent-hover: #4A80F0;
+  --ok: #34C36B;
+  /* Abstände */
+  --s-25: 2px; --s-50: 4px; --s-75: 8px; --s-100: 12px; --s-200: 16px; --s-300: 24px;
+  --s-400: 32px; --s-500: 40px; --s-600: 48px; --s-700: 64px; --s-800: 80px; --s-900: 96px;
+  /* Bewegung */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --tile: 56px;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Geist", system-ui, sans-serif;
+  font-style: normal;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+a { color: inherit; text-decoration: none; }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+:focus-visible { outline: 2px solid #8FB4FF; outline-offset: 2px; }
+
+/* Textstile */
+.heading-1 { font-size: 60px; line-height: 60px; font-weight: 600; }
+.heading-3 { font-size: 36px; line-height: 40px; font-weight: 600; }
+.title-4 { font-size: 14px; line-height: 20px; font-weight: 500; }
+.title-5 { font-size: 12px; line-height: 16px; font-weight: 500; }
+.body-3 { font-size: 16px; line-height: 24px; font-weight: 400; }
+.body-5 { font-size: 14px; line-height: 20px; font-weight: 500; }
+.body-6 { font-size: 14px; line-height: 20px; font-weight: 400; }
+.button-lg { font-size: 18px; line-height: 28px; font-weight: 600; }
+.button-sm { font-size: 14px; line-height: 20px; font-weight: 600; }
+.caption-2 { font-size: 14px; line-height: 20px; font-weight: 400; }
+.caption-4 { font-size: 12px; line-height: 16px; font-weight: 500; }
+
+.skip {
+  position: absolute; left: var(--s-200); top: var(--s-200); z-index: 100;
+  padding: var(--s-75) var(--s-100); border-radius: 8px; background: var(--text); color: #000;
+  transform: translateY(-200%);
+}
+.skip:focus { transform: none; }
+
+/* Schreibtisch */
+.desktop { position: relative; height: 100dvh; display: flex; flex-direction: column; }
+
+/* Menüleiste */
+.menubar {
+  position: relative; z-index: 30;
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s-200);
+  height: 32px; padding: 0 var(--s-200);
+  background: rgba(31, 31, 31, 0.72); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--line); border-width: 0 0 1px 0; /* Leiste, keine Karte */
+}
+.menubar nav, .menubar .status { display: flex; align-items: center; gap: var(--s-50); }
+.brand { display: flex; align-items: center; gap: var(--s-75); padding: var(--s-25) var(--s-75); font-weight: 600; }
+.brand img { width: 18px; height: 18px; border-radius: 4px; }
+.menubar a.item, .menubar button.item {
+  padding: var(--s-25) var(--s-75); border-radius: 6px;
+  transition: background-color 300ms var(--ease);
+}
+.menubar .item:hover, .menubar .item[aria-expanded="true"] { background: rgba(255, 255, 255, 0.12); }
+.menubar .item:active { transform: scale(0.98); }
+.menubar .item i { font-size: 16px; vertical-align: -3px; }
+.clock { padding: 0 var(--s-75); color: var(--text); font-variant-numeric: tabular-nums; }
+
+.menu {
+  position: absolute; right: var(--s-200); top: 36px; z-index: 40; min-width: 280px;
+  padding: var(--s-50); border-radius: 12px; border: 1px solid var(--line);
+  background: rgba(39, 39, 39, 0.92); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+  opacity: 0; transform: translateY(-8px); pointer-events: none;
+  transition: opacity 300ms var(--ease), transform 500ms var(--ease);
+}
+.menu.open { opacity: 1; transform: none; pointer-events: auto; }
+.menu button, .menu a {
+  display: flex; align-items: center; gap: var(--s-75); width: 100%; text-align: left;
+  padding: var(--s-75) var(--s-100); border-radius: 8px; /* 12 außen − 4 Abstand */
+  transition: background-color 300ms var(--ease);
+}
+.menu button:hover, .menu a:hover { background: var(--accent); }
+.menu button:active, .menu a:active { transform: scale(0.98); }
+.menu .check { width: 16px; }
+.menu hr { border: 0; height: 1px; background: var(--line); margin: var(--s-50) var(--s-75); }
+
+/* Mitte */
+.hero {
+  flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; padding: var(--s-300) var(--s-200) calc(var(--tile) + var(--s-900));
+}
+.hero .appicon { width: 96px; height: 96px; margin-bottom: var(--s-300); }
+.hero h1 {
+  margin: 0; max-width: 680px; text-wrap: balance;
+  background: linear-gradient(90deg, #FFFFFF, #9B9B9B); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.hero .sub { margin: var(--s-200) 0 0; max-width: 680px; color: var(--muted); text-wrap: pretty; }
+.cta { display: flex; flex-direction: column; align-items: center; gap: var(--s-200); margin-top: var(--s-400); }
+.download {
+  display: inline-flex; align-items: center; gap: var(--s-100);
+  padding: var(--s-200) var(--s-400); border-radius: 16px; background: var(--accent); color: #fff;
+  transition: background-color 300ms var(--ease), transform 500ms var(--ease);
+}
+.download i { font-size: 24px; }
+.download:hover { background: var(--accent-hover); transform: translateY(-2px); }
+.download:active { transform: scale(0.98); }
+.github {
+  display: inline-flex; align-items: center; gap: var(--s-75);
+  padding: var(--s-75) var(--s-100); border-radius: 8px; border: 1px solid var(--line); color: var(--text);
+  transition: background-color 300ms var(--ease), transform 500ms var(--ease);
+}
+.github i { font-size: 18px; }
+.github:hover { background: var(--surface-2); }
+.github:active { transform: scale(0.98); }
+.proof { margin: var(--s-300) 0 0; color: var(--muted); text-wrap: balance; }
+
+/* Fenster "Probier es aus" */
+.tips {
+  position: absolute; left: var(--s-300); top: var(--s-700); z-index: 10; width: 280px;
+  border-radius: 12px; border: 1px solid var(--line); background: var(--surface-1);
+}
+.tips .bar {
+  display: flex; align-items: center; gap: var(--s-75); padding: var(--s-100);
+  border-radius: 12px 12px 0 0; background: var(--surface-2);
+}
+.tips .dots { display: flex; gap: 6px; }
+.tips .dots span { width: 10px; height: 10px; border-radius: 9999px; background: var(--surface-3); }
+.tips .bar strong { flex: 1; text-align: center; margin-right: 42px; }
+.tips ol { text-align: left; list-style: none; margin: 0; padding: var(--s-100); display: grid; gap: var(--s-50); }
+.tips li { display: flex; gap: var(--s-75); align-items: flex-start; padding: var(--s-50); color: var(--muted); transition: color 300ms var(--ease); }
+.tips li i { font-size: 20px; flex: none; color: var(--surface-3); transition: color 300ms var(--ease); }
+.tips li.done { color: var(--text); }
+.tips li.done i { color: var(--ok); }
+
+/* Dock */
+.dock-wrap { position: absolute; left: 0; right: 0; bottom: var(--s-100); z-index: 20; display: flex; justify-content: center; pointer-events: none; }
+.dock { position: relative; display: flex; align-items: flex-end; gap: var(--s-75); padding: var(--s-75); pointer-events: auto; isolation: isolate; }
+.dock .plate {
+  position: absolute; inset: 0; z-index: -1; border-radius: 24px; border: 1px solid var(--line);
+  background: rgba(49, 49, 49, 0.72); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+}
+.tile { position: relative; width: var(--tile); height: var(--tile); flex: none; touch-action: none; -webkit-user-select: none; user-select: none; }
+.tile .face {
+  width: 100%; height: 100%; border-radius: 16px; /* 24 außen − 8 Abstand */
+  display: grid; place-items: center; color: #fff; font-size: 28px;
+  transition: transform 500ms var(--ease), opacity 300ms var(--ease);
+  transform-origin: 50% 100%;
+}
+.tile:hover .face { transform: translateY(-6px) scale(1.14); }
+.tile:active .face { transform: translateY(-2px) scale(1.06); }
+.tile.dragging .face { opacity: 0.25; transform: none; }
+.tile.drop .face { transform: scale(1.2); }
+.tile.bounce .face { animation: bounce 700ms var(--ease); }
+@keyframes bounce { 0% { transform: none; } 35% { transform: translateY(-22px); } 100% { transform: none; } }
+.tile .label {
+  position: absolute; left: 50%; bottom: calc(100% + var(--s-200)); transform: translate(-50%, 4px);
+  padding: var(--s-50) var(--s-75); border-radius: 6px; background: var(--surface-2); border: 1px solid var(--line);
+  white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 300ms var(--ease), transform 500ms var(--ease);
+}
+.tile:hover .label { opacity: 1; transform: translate(-50%, 0); }
+.tile.dragging .label, .dock.busy .label { opacity: 0; }
+.tile .dot { position: absolute; left: 50%; bottom: -6px; width: 4px; height: 4px; margin-left: -2px; border-radius: 9999px; background: var(--muted); opacity: 0; }
+.tile.running .dot { opacity: 1; }
+.folder .face { background: rgba(155, 155, 155, 0.35); border: 1px solid var(--line); display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-50); padding: var(--s-75); place-items: stretch; }
+.folder .face span { border-radius: 4px; }
+.sep { width: 1px; height: 40px; margin: 0 var(--s-50) var(--s-75); background: var(--line); flex: none; }
+.win .face { background: var(--surface-1); border: 1px solid var(--line); border-radius: 8px; height: 40px; margin-top: 16px; display: block; padding: 6px; }
+.win .face::before { content: ""; display: block; width: 18px; height: 4px; border-radius: 9999px; background: var(--surface-3); box-shadow: 0 10px 0 var(--surface-3), 0 20px 0 var(--surface-2); }
+.trash .face { color: var(--muted); font-size: 32px; }
+
+/* Ordner-Popup */
+.popup {
+  position: absolute; z-index: 25; padding: var(--s-200); border-radius: 24px; border: 1px solid var(--line);
+  background: rgba(39, 39, 39, 0.9); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+  opacity: 0; transform: translateY(12px) scale(0.96); transform-origin: 50% 100%; pointer-events: none;
+  transition: opacity 300ms var(--ease), transform 500ms var(--ease);
+}
+.popup.open { opacity: 1; transform: none; pointer-events: auto; }
+.popup h2 { margin: 0 0 var(--s-100); text-align: center; }
+.popup .grid { display: grid; grid-template-columns: repeat(var(--cols, 2), 72px); gap: var(--s-75); }
+.popup .app { display: flex; flex-direction: column; align-items: center; gap: var(--s-50); padding: var(--s-75) 0; border-radius: 8px; touch-action: none; -webkit-user-select: none; user-select: none; transition: background-color 300ms var(--ease); }
+.popup .app:hover { background: rgba(255, 255, 255, 0.1); }
+.popup .app .face { width: 48px; height: 48px; border-radius: 12px; display: grid; place-items: center; color: #fff; font-size: 24px; }
+.popup .app.dragging { opacity: 0.25; }
+.popup .hint { margin: var(--s-100) 0 0; text-align: center; color: var(--muted); }
+
+/* Gezogenes Symbol */
+.ghost { position: fixed; left: 0; top: 0; z-index: 60; width: var(--tile); height: var(--tile); margin: calc(var(--tile) / -2) 0 0 calc(var(--tile) / -2); pointer-events: none; will-change: transform; }
+.ghost .face { width: 100%; height: 100%; border-radius: 16px; display: grid; place-items: center; color: #fff; font-size: 28px; }
+.ghost.wiggle .face { animation: wiggle 240ms ease-in-out infinite alternate; }
+@keyframes wiggle { from { transform: rotate(-5deg); } to { transform: rotate(5deg); } }
+.ghost .plus {
+  position: absolute; right: -14px; top: -10px; padding: var(--s-25) var(--s-75); border-radius: 9999px;
+  background: var(--ok); color: #fff; border: 2px solid #fff;
+  opacity: 0; transform: scale(0.5); transition: opacity 300ms var(--ease), transform 500ms var(--ease);
+}
+.ghost.armed .plus { opacity: 1; transform: none; }
+
+.toast {
+  position: absolute; left: 50%; bottom: calc(var(--tile) + var(--s-700)); z-index: 22; transform: translate(-50%, 8px);
+  padding: var(--s-75) var(--s-100); border-radius: 9999px; background: var(--surface-2); border: 1px solid var(--line);
+  opacity: 0; pointer-events: none; white-space: nowrap; transition: opacity 300ms var(--ease), transform 500ms var(--ease);
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* Schmale Bildschirme */
+@media (max-width: 1100px) {
+  .tips { position: static; width: auto; max-width: 420px; margin: var(--s-300) auto 0; text-align: left; }
+  .hero { justify-content: flex-start; overflow-y: auto; padding-top: var(--s-400); }
+}
+@media (max-width: 720px) {
+  :root { --tile: 44px; }
+  .heading-1 { font-size: 36px; line-height: 40px; }
+  .hero h1 br { display: none; }
+  .hero { padding-top: var(--s-300); }
+  .cta { margin-top: var(--s-300); }
+  .menubar nav .item { display: none; }
+  .hero .appicon { width: 64px; height: 64px; margin-bottom: var(--s-200); }
+  .tile .face, .ghost .face { font-size: 22px; border-radius: 12px; }
+  .dock { gap: var(--s-50); padding: var(--s-50); }
+  .dock .plate { border-radius: 16px; }
+  .win .face { height: 32px; margin-top: 12px; }
+  .sep { height: 32px; margin-bottom: var(--s-50); }
+  .toast { white-space: normal; text-align: center; max-width: calc(100vw - var(--s-400)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition-property: opacity, background-color, color !important; }
+  .tile:hover .face, .download:hover { transform: none; }
+}
+</style>
+</head>
+<body>
+<a class="skip body-5" href="#main">Zum Inhalt springen</a>
+
+<div class="desktop" id="desktop">
+  <header class="menubar title-4">
+    <nav aria-label="Hauptmenü">
+      <a class="brand" href="./" aria-current="page"><img src="favicon.png" alt="">Better Dock</a>
+      <a class="item" href="https://github.com/adrianweber001/better-dock/releases/latest/download/Better-Dock.dmg">Laden</a>
+      <a class="item" href="https://github.com/adrianweber001/better-dock" target="_blank" rel="noopener">GitHub</a>
+      <a class="item" href="https://github.com/adrianweber001/better-dock/blob/main/LICENSE" target="_blank" rel="noopener">Lizenz</a>
+    </nav>
+    <div class="status">
+      <button class="item" id="menuButton" aria-haspopup="true" aria-expanded="false" aria-controls="menu" aria-label="Menü von Better Dock öffnen">
+        <i class="ph ph-squares-four" aria-hidden="true"></i>
+      </button>
+      <span class="clock" id="clock" aria-hidden="true"></span>
+    </div>
+    <div class="menu body-6" id="menu" role="menu">
+      <button role="menuitem" id="toggleRight"><span class="check"></span><span id="toggleRightLabel">Rechte Seite im Dock ausblenden</span></button>
+      <hr>
+      <button role="menuitem" id="toggleHover"><span class="check"><i class="ph ph-check" aria-hidden="true"></i></span>Ordner beim Überfahren öffnen</button>
+      <button role="menuitem" id="resetDock"><span class="check"></span>Dock zurücksetzen</button>
+      <hr>
+      <a role="menuitem" href="https://github.com/adrianweber001/better-dock/releases/latest/download/Better-Dock.dmg"><span class="check"></span>Better Dock laden</a>
+    </div>
+  </header>
+
+  <main class="hero" id="main">
+    <img class="appicon" src="icon.png" alt="Symbol der App Better Dock" width="96" height="96">
+    <h1 class="heading-1">Ein aufgeräumtes Dock <br>für deinen Mac</h1>
+    <p class="sub body-3">Better Dock blendet die rechte Seite im Dock aus und packt Apps in Ordner wie am iPad. Das Dock unten ist echt bedienbar: probier es aus.</p>
+    <div class="cta">
+      <a class="download button-lg" href="https://github.com/adrianweber001/better-dock/releases/latest/download/Better-Dock.dmg">
+        <i class="ph ph-download-simple" aria-hidden="true"></i>Für Mac laden
+      </a>
+      <a class="github button-sm" href="https://github.com/adrianweber001/better-dock" target="_blank" rel="noopener">
+        <i class="ph ph-github-logo" aria-hidden="true"></i>Auf GitHub ansehen
+      </a>
+    </div>
+    <p class="proof caption-2">Kostenlos und Open Source (MIT) · macOS 14 oder neuer · Apple Silicon und Intel</p>
+
+    <aside class="tips" aria-label="Probier es aus">
+      <div class="bar"><div class="dots" aria-hidden="true"><span></span><span></span><span></span></div><strong class="title-4">Probier es aus</strong></div>
+      <ol class="body-6">
+        <li data-task="merge"><i class="ph-fill ph-check-circle" aria-hidden="true"></i>Zieh im Dock eine App auf eine andere und halte kurz</li>
+        <li data-task="hover"><i class="ph-fill ph-check-circle" aria-hidden="true"></i>Fahr mit der Maus über einen Ordner</li>
+        <li data-task="remove"><i class="ph-fill ph-check-circle" aria-hidden="true"></i>Zieh eine App wieder aus dem Ordner heraus</li>
+        <li data-task="hide"><i class="ph-fill ph-check-circle" aria-hidden="true"></i>Blende oben rechts im Menü die rechte Seite aus</li>
+      </ol>
+    </aside>
+  </main>
+
+  <div class="dock-wrap"><div class="dock" id="dock" role="toolbar" aria-label="Dock zum Ausprobieren"></div></div>
+  <div class="popup" id="popup" role="dialog" aria-label="Ordner"></div>
+  <div class="toast caption-2" id="toast" role="status" aria-live="polite"></div>
+</div>
+<div class="ghost" id="ghost" hidden></div>
+
+<script>
+(() => {
+  const EASE = 'cubic-bezier(0.22, 1, 0.36, 1)';
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const small = () => innerWidth <= 720;
+
+  const APPS = {
+    mail:   { name: 'Post',     icon: 'envelope-simple',  color: '#2F6BEB' },
+    notes:  { name: 'Notizen',  icon: 'note-pencil',      color: '#C9951A' },
+    music:  { name: 'Musik',    icon: 'music-notes',      color: '#D8415F' },
+    photos: { name: 'Fotos',    icon: 'image',            color: '#2E9E6B' },
+    chat:   { name: 'Chat',     icon: 'chat-circle-dots', color: '#7A5AF0' },
+    code:   { name: 'Code',     icon: 'code',             color: '#1E88A8' },
+    cal:    { name: 'Kalender', icon: 'calendar-blank',   color: '#E0662F' },
+    draw:   { name: 'Skizze',   icon: 'paint-brush',      color: '#C2479B' },
+    video:  { name: 'Video',    icon: 'film-strip',       color: '#4B5BD6' },
+  };
+
+  const initial = () => ({
+    left: small()
+      ? [app('mail'), folder('Kreativ', ['photos', 'draw', 'video']), app('music'), app('chat')]
+      : [app('mail'), app('notes'), folder('Kreativ', ['photos', 'draw', 'video']), app('music'), app('chat'), app('code'), app('cal')],
+    windows: small() ? 1 : 4,
+    rightHidden: false,
+    hoverOpen: true,
+    running: new Set(),
+  });
+  let folderCount = 0;
+  function app(id) { return { type: 'app', id, key: 'a-' + id }; }
+  function folder(name, apps) { return { type: 'folder', name, apps, key: 'f-' + (++folderCount) }; }
+
+  let state = initial();
+  const dock = document.getElementById('dock');
+  const popup = document.getElementById('popup');
+  const ghost = document.getElementById('ghost');
+  const toastEl = document.getElementById('toast');
+
+  const face = (id, cls = 'face') =>
+    `<span class="${cls}" style="background:${APPS[id].color}"><i class="ph-fill ph-${APPS[id].icon}" aria-hidden="true"></i></span>`;
+
+  // ---------- Dock zeichnen ----------
+  function render() {
+    let html = '<div class="plate"></div>';
+    state.left.forEach((item, index) => {
+      if (item.type === 'app') {
+        const a = APPS[item.id];
+        html += `<button class="tile app${state.running.has(item.id) ? ' running' : ''}" data-key="${item.key}" data-index="${index}" aria-label="${a.name}">
+          ${face(item.id)}<span class="label caption-4">${a.name}</span><span class="dot"></span></button>`;
+      } else {
+        const minis = item.apps.slice(0, 4).map(id => `<span style="background:${APPS[id].color}"></span>`).join('');
+        html += `<button class="tile folder" data-key="${item.key}" data-index="${index}" aria-label="Ordner ${item.name}, ${item.apps.length} Apps" aria-haspopup="dialog">
+          <span class="face">${minis}</span><span class="label caption-4">${item.name}</span></button>`;
+      }
+    });
+    if (!state.rightHidden) {
+      html += '<span class="sep" data-key="sep" aria-hidden="true"></span>';
+      for (let i = 1; i <= state.windows; i++) {
+        html += `<span class="tile win" data-key="w-${i}" role="img" aria-label="Minimiertes Fenster"><span class="face"></span><span class="label caption-4">Minimiertes Fenster</span></span>`;
+      }
+    } else {
+      html += '<span class="sep" data-key="sep" aria-hidden="true"></span>';
+    }
+    html += `<span class="tile trash" data-key="trash" role="img" aria-label="Papierkorb"><span class="face"><i class="ph ph-trash" aria-hidden="true"></i></span><span class="label caption-4">Papierkorb</span></span>`;
+    dock.innerHTML = html;
+    dock.querySelectorAll('button.tile').forEach(bind);
+  }
+
+  // Änderungen am Dock weich darstellen: alte und neue Position vergleichen, per transform ausgleichen.
+  function change(mutate) {
+    const before = new Map();
+    dock.querySelectorAll('[data-key]').forEach(el => before.set(el.dataset.key, el.getBoundingClientRect()));
+    const plateBefore = dock.querySelector('.plate').getBoundingClientRect();
+    mutate();
+    render();
+    if (reduced) return;
+    dock.querySelectorAll('[data-key]').forEach(el => {
+      const old = before.get(el.dataset.key);
+      const now = el.getBoundingClientRect();
+      if (!old) {
+        el.animate([{ opacity: 0, transform: 'scale(0.5)' }, { opacity: 1, transform: 'none' }], { duration: 500, easing: EASE });
+      } else if (Math.abs(old.left - now.left) > 0.5) {
+        el.animate([{ transform: `translateX(${old.left - now.left}px)` }, { transform: 'none' }], { duration: 500, easing: EASE });
+      }
+    });
+    const plate = dock.querySelector('.plate');
+    const plateNow = plate.getBoundingClientRect();
+    if (Math.abs(plateNow.width - plateBefore.width) > 0.5) {
+      plate.animate([{ transform: `scaleX(${plateBefore.width / plateNow.width})` }, { transform: 'none' }], { duration: 500, easing: EASE });
+    }
+  }
+
+  // ---------- Aufgabenliste und Hinweise ----------
+  function done(task) {
+    const li = document.querySelector(`[data-task="${task}"]`);
+    if (!li || li.classList.contains('done')) return;
+    li.classList.add('done');
+    if (!document.querySelector('[data-task]:not(.done)')) toast('Alles ausprobiert. Oben in der Mitte kannst du Better Dock laden.', 5000);
+  }
+  let toastTimer;
+  function toast(message, time = 2600) {
+    toastEl.textContent = message;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('show'), time);
+  }
+
+  // ---------- Ordner-Popup ----------
+  let openKey = null, closeTimer = null, openTimer = null;
+  function openPopup(key, viaHover) {
+    const item = state.left.find(i => i.key === key);
+    const tile = dock.querySelector(`[data-key="${key}"]`);
+    if (!item || !tile) return;
+    openKey = key;
+    const cols = item.apps.length <= 4 ? 2 : 3;
+    popup.style.setProperty('--cols', cols);
+    popup.innerHTML = `<h2 class="title-4">${item.name}</h2><div class="grid">` + item.apps.map(id =>
+      `<button class="app" data-app="${id}" aria-label="${APPS[id].name}">${face(id)}<span class="caption-4">${APPS[id].name}</span></button>`).join('') +
+      `</div><p class="hint caption-4">Zum Entfernen herausziehen</p>`;
+    popup.querySelectorAll('.app').forEach(bindPopupApp);
+    const host = document.getElementById('desktop').getBoundingClientRect();
+    const rect = tile.getBoundingClientRect();
+    const width = popup.offsetWidth, height = popup.offsetHeight;
+    const left = Math.min(Math.max(rect.left + rect.width / 2 - width / 2, 12), host.width - width - 12);
+    popup.style.left = left + 'px';
+    popup.style.top = (rect.top - height - 16 - host.top) + 'px';
+    popup.classList.add('open');
+    if (viaHover) done('hover');
+  }
+  function closePopup() {
+    openKey = null;
+    popup.classList.remove('open');
+  }
+  function scheduleClose() {
+    clearTimeout(closeTimer);
+    closeTimer = setTimeout(() => { if (!drag) closePopup(); }, 280);
+  }
+  popup.addEventListener('pointerenter', () => clearTimeout(closeTimer));
+  popup.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') scheduleClose(); });
+  document.addEventListener('pointerdown', e => {
+    if (openKey && !popup.contains(e.target) && !e.target.closest('.folder')) closePopup();
+  });
+
+  // ---------- Ziehen ----------
+  let drag = null;
+  function startDrag(d, e) {
+    d.started = true;
+    dock.classList.add('busy');
+    d.el.classList.add('dragging');
+    ghost.innerHTML = face(d.appId) + '<span class="plus caption-4">+1</span>';
+    ghost.className = 'ghost' + (d.from === 'folder' ? ' wiggle' : '');
+    ghost.hidden = false;
+    moveGhost(e);
+  }
+  function moveGhost(e) { ghost.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`; }
+
+  function setTarget(d, el) {
+    if (d.target === el) return;
+    if (d.target) d.target.classList.remove('drop');
+    clearTimeout(d.armTimer);
+    d.target = el;
+    d.armed = false;
+    ghost.classList.remove('armed');
+    if (!el) return;
+    d.armTimer = setTimeout(() => {       // kurz halten, dann ist der Ordner "scharf"
+      d.armed = true;
+      el.classList.add('drop');
+      ghost.classList.add('armed');
+    }, 260);
+  }
+
+  function onMove(e) {
+    const d = drag;
+    if (!d || e.pointerId !== d.pointerId) return;
+    if (!d.started) {
+      if (Math.hypot(e.clientX - d.x, e.clientY - d.y) < 6) return;
+      startDrag(d, e);
+    }
+    moveGhost(e);
+    if (d.from === 'dock') {
+      const under = document.elementFromPoint(e.clientX, e.clientY);
+      const tile = under && under.closest('button.tile');
+      setTarget(d, tile && tile !== d.el && dock.contains(tile) ? tile : null);
+    }
+  }
+
+  function onUp(e) {
+    const d = drag;
+    if (!d || e.pointerId !== d.pointerId) return;
+    drag = null;
+    clearTimeout(d.armTimer);
+    dock.classList.remove('busy');
+    ghost.hidden = true;
+    d.el.classList.remove('dragging');
+    if (d.target) d.target.classList.remove('drop');
+
+    if (!d.started) { d.click(); return; }
+
+    if (d.from === 'dock') {
+      if (!(d.armed && d.target)) { toast('Halte die App kurz über einer anderen, bis +1 erscheint.'); return; }
+      const targetKey = d.target.dataset.key;
+      change(() => {
+        const target = state.left.find(i => i.key === targetKey);
+        state.left = state.left.filter(i => i.key !== d.key);
+        if (target.type === 'folder') target.apps.push(d.appId);
+        else state.left[state.left.indexOf(target)] = folder('Ordner', [target.id, d.appId]);
+      });
+      done('merge');
+    } else {
+      const box = popup.getBoundingClientRect();
+      const inside = e.clientX >= box.left && e.clientX <= box.right && e.clientY >= box.top && e.clientY <= box.bottom;
+      if (inside) return;
+      const folderKey = d.folderKey;
+      closePopup();
+      change(() => {
+        const index = state.left.findIndex(i => i.key === folderKey);
+        const item = state.left[index];
+        item.apps = item.apps.filter(id => id !== d.appId);
+        // Bleibt nur eine App übrig, löst sich der Ordner auf.
+        const rest = item.apps.length < 2 ? item.apps.map(app) : [item];
+        state.left.splice(index, 1, ...rest, app(d.appId));
+      });
+      done('remove');
+    }
+  }
+  addEventListener('pointermove', onMove);
+  addEventListener('pointerup', onUp);
+  addEventListener('pointercancel', onUp);
+
+  function bind(el) {
+    const item = state.left[+el.dataset.index];
+    if (item.type === 'app') {
+      el.addEventListener('pointerdown', e => {
+        if (e.button) return;
+        drag = { from: 'dock', el, key: item.key, appId: item.id, pointerId: e.pointerId, x: e.clientX, y: e.clientY,
+          click: () => launch(item.id, el) };
+      });
+      el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); launch(item.id, el); } });
+    } else {
+      el.addEventListener('pointerenter', e => {
+        if (e.pointerType !== 'mouse' || !state.hoverOpen || drag) return;
+        clearTimeout(closeTimer);
+        clearTimeout(openTimer);
+        openTimer = setTimeout(() => openPopup(item.key, true), 120);
+      });
+      el.addEventListener('pointerleave', e => { clearTimeout(openTimer); if (e.pointerType === 'mouse') scheduleClose(); });
+      el.addEventListener('click', () => {
+        clearTimeout(openTimer);
+        if (openKey === item.key && !state.hoverOpen) closePopup(); else { openPopup(item.key, false); done('hover'); }
+      });
+    }
+  }
+
+  function bindPopupApp(el) {
+    const appId = el.dataset.app;
+    el.addEventListener('pointerdown', e => {
+      if (e.button) return;
+      drag = { from: 'folder', el, folderKey: openKey, appId, pointerId: e.pointerId, x: e.clientX, y: e.clientY,
+        click: () => { closePopup(); launch(appId); } };
+    });
+    el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); closePopup(); launch(appId); } });
+  }
+
+  function launch(id, el) {
+    state.running.add(id);
+    if (el) {
+      el.classList.add('running');
+      el.classList.remove('bounce');
+      void el.offsetWidth;
+      el.classList.add('bounce');
+    }
+    toast(`Auf deinem Mac würde jetzt ${APPS[id].name} starten.`);
+  }
+
+  // ---------- Menüleiste ----------
+  const menuButton = document.getElementById('menuButton');
+  const menu = document.getElementById('menu');
+  function setMenu(open) {
+    menu.classList.toggle('open', open);
+    menuButton.setAttribute('aria-expanded', String(open));
+  }
+  menuButton.addEventListener('click', e => { e.stopPropagation(); setMenu(!menu.classList.contains('open')); });
+  document.addEventListener('click', e => { if (!menu.contains(e.target)) setMenu(false); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { setMenu(false); closePopup(); } });
+
+  document.getElementById('toggleRight').addEventListener('click', () => {
+    closePopup();
+    change(() => { state.rightHidden = !state.rightHidden; });
+    document.getElementById('toggleRightLabel').textContent =
+      state.rightHidden ? 'Rechte Seite im Dock einblenden' : 'Rechte Seite im Dock ausblenden';
+    toast(state.rightHidden ? 'Minimierte Fenster sind aus dem Dock verschwunden.' : 'Die rechte Seite ist wieder da.');
+    done('hide');
+    setMenu(false);
+  });
+  document.getElementById('toggleHover').addEventListener('click', e => {
+    state.hoverOpen = !state.hoverOpen;
+    e.currentTarget.querySelector('.check').innerHTML = state.hoverOpen ? '<i class="ph ph-check" aria-hidden="true"></i>' : '';
+    toast(state.hoverOpen ? 'Ordner öffnen sich beim Überfahren.' : 'Ordner öffnen sich jetzt nur per Klick.');
+    setMenu(false);
+  });
+  document.getElementById('resetDock').addEventListener('click', () => {
+    closePopup();
+    const hoverOpen = state.hoverOpen;
+    change(() => { state = initial(); state.hoverOpen = hoverOpen; });
+    document.getElementById('toggleRightLabel').textContent = 'Rechte Seite im Dock ausblenden';
+    setMenu(false);
+  });
+
+  // Uhr
+  const clock = document.getElementById('clock');
+  function tick() {
+    const now = new Date();
+    const day = now.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' });
+    clock.textContent = `${day} ${now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`;
+  }
+  tick();
+  setInterval(tick, 20000);
+
+  render();
+})();
+</script>
+</body>
+</html>
